@@ -1,0 +1,6 @@
+# Ignore all files in default
+*
+
+# Allow only necessary files for build
+!enclave
+!enclave/**
