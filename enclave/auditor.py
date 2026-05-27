@@ -121,8 +121,14 @@ def main(argv: list[str]) -> int:
     code_hash_hex = hashlib.sha384(code_bytes).hexdigest()
 
     audit_result = {
-        "hashed": {"code": code_hash_hex},
-        "raw": {"result": audit(code_bytes)},
+        "code": {
+            "data": code_hash_hex,
+            "hash": "SHA384",
+        },
+        "result": {
+            "data": audit(code_bytes),
+            "hash": "None",
+        },
     }
     audit_bytes = canonical_json(audit_result)
     audit_hash = hashlib.sha384(audit_bytes).digest()
