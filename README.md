@@ -1,8 +1,8 @@
 # Attestable Audit PoC
 
-This repository is a proof of concept (PoC) that produces a *hardware-rooted* zero-knowledge proof (ZKP) of the result of auditing a program. The public values disclosed are `SHA-384(P)` of the audited program `P` and the audit outcome (`success` or `fail`); `P` itself never leaves the enclave. The proof is realised by running the audit inside a Trusted Execution Environment (TEE) and binding those two public values to a hardware-rooted attestation report — a verifier who trusts the published enclave measurement (`MRENCLAVE`) is thereby convinced that some `P` with the disclosed hash passed the audit, without learning `P`.
+This repository is a proof of concept (PoC) that produces a *hardware-rooted* zero-knowledge proof (ZKP) of the result of auditing a program. The public values disclosed are `SHA-384(P)` of the audited program `P` and the audit outcome (`success` or `fail`); `P` itself never leaves the enclave. The proof is realised by running the audit inside a Trusted Execution Environment (TEE) and binding those two public values to a hardware-rooted attestation report — a verifier who trusts the published enclave measurement (e.g. `MRENCLAVE`) is thereby convinced that some `P` with the disclosed hash passed the audit, without knowing `P`.
 
-The enclave is built on [Gramine SGX](https://github.com/gramineproject/gramine), a library OS that runs an unmodified Python interpreter inside an Intel SGX enclave. Attestation follows the Intel DCAP flow; the test environment uses Azure THIM as the PCK certificate cache.
+The enclave is built on [Gramine](https://github.com/gramineproject/gramine), a library OS that runs an unmodified Python interpreter inside an Intel SGX enclave. Attestation follows the Intel DCAP flow; the test environment uses Azure THIM as the PCK certificate cache.
 
 It utilises the following combination:
 
@@ -123,41 +123,53 @@ docker run --rm \
   attestable-audit-poc \
   /work/samples/hello.py /work/output
 
-# Display the AuditResult
-cat output/audit_result.json
+# AuditResult
+cat output/audit_result.json | jq
 
-# Display the report data of the SGX quote
+# MRENCLAVE in the SGX quote
+xxd -s 0x70 -l 32 output/quote.bin
+
+# Report data in the SGX quote
 xxd -s 0x170 -l 64 output/quote.bin
 
-# Display the reported MRENCLAVE in the SGX quote
-xxd -s 0x70 -l 32 output/quote.bin
+# SHA-384 hash of the AuditResult
+sha384sum output/audit_result.json
+
+# SHA-384 hash of hello.py
+sha384sum samples/hello.py
 ```
 
 ### Example output
 
 ```console
 $ docker run --rm --entrypoint cat attestable-audit-poc /enclave/mrenclave.hex
-1e959df7996b0d75f4ae93f59a007157882bd1944994c409f6baf78a3afe38db
+75ea1a43f1ba346c858881a2a41874d49d881645cfc0485a85953f847e768919
 
-$ docker run --rm ...
-
-...
-audit_result_sha384=4d7f5f0f06a916fc01e4178111e9a0f7419c92b63b3113b6cff3ac03fc078e416421916f7869ff4d917f3a0066d5a4e6
-quote_size=4730
-{"hashed":{"code":"1797358c48b127f4bb7cb69b9e04c3bc56d14eb70a59699ba2aaf7c7aa7db8af365ceb04d4b6d92a419bc92619ad3b81"},"raw":{"result":"success"}}
-wrote: /work/output/audit_result.json
-wrote: /work/output/quote.bin
-
-$ cat output/audit_result.json
-{"hashed":{"code":"1797358c48b127f4bb7cb69b9e04c3bc56d14eb70a59699ba2aaf7c7aa7db8af365ceb04d4b6d92a419bc92619ad3b81"},"raw":{"result":"success"}}a
-
-$ xxd -s 0x170 -l 64 output/quote.bin
-00000170: 4d7f 5f0f 06a9 16fc 01e4 1781 11e9 a0f7  M._.............
-00000180: 419c 92b6 3b31 13b6 cff3 ac03 fc07 8e41  A...;1.........A
-00000190: 6421 916f 7869 ff4d 917f 3a00 66d5 a4e6  d!.oxi.M..:.f...
-000001a0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+$ cat output/audit_result.json | jq
+{
+  "code": {
+    "data": "1797358c48b127f4bb7cb69b9e04c3bc56d14eb70a59699ba2aaf7c7aa7db8af365ceb04d4b6d92a419bc92619ad3b81",
+    "hash": "SHA384"
+  },
+  "result": {
+    "data": "success",
+    "hash": "None"
+  }
+}
 
 $ xxd -s 0x70 -l 32 output/quote.bin
-00000070: 1e95 9df7 996b 0d75 f4ae 93f5 9a00 7157  .....k.u......qW
-00000080: 882b d194 4994 c409 f6ba f78a 3afe 38db  .+..I.......:.8.
+00000070: 75ea 1a43 f1ba 346c 8588 81a2 a418 74d4  u..C..4l......t.
+00000080: 9d88 1645 cfc0 485a 8595 3f84 7e76 8919  ...E..HZ..?.~v..
+
+$ xxd -s 0x170 -l 64 output/quote.bin
+00000170: eb70 9fe0 310a d1ab 87c2 2094 6304 d950  .p..1..... .c..P
+00000180: 4358 8c4c d3e3 01ea 9868 8d23 9a84 8da9  CX.L.....h.#....
+00000190: d95c 85cc 0bb0 4f66 ee94 4a9c 79e8 14ee  .\....Of..J.y...
+000001a0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+
+$ sha384sum output/audit_result.json
+eb709fe0310ad1ab87c220946304d95043588c4cd3e301ea98688d239a848da9d95c85cc0bb04f66ee944a9c79e814ee  output/audit_result.json
+
+$ sha384sum samples/hello.py
+1797358c48b127f4bb7cb69b9e04c3bc56d14eb70a59699ba2aaf7c7aa7db8af365ceb04d4b6d92a419bc92619ad3b81  samples/hello.py
 ```
