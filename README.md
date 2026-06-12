@@ -60,48 +60,78 @@ As the audit logic is embedded in MRENCLAVE, an `AuditResult` with code hash `m`
 - **Cloud Service Provider**: Microsoft Azure
 - **Region**: Japan East
 - **Availability Zone**: Zone 3
-- **Security type**: Trusted launch virtual machines (vTPM enabled)
+- **Security type**: Trusted launch virtual machines
 - **Size Family**: DC1sv3
+  - **CPU**: Intel(R) Xeon(R) Platinum 8370C CPU
+  - **Cores**: 1
+  - **Memory**: 8 GB
+  - **EPC Memory**: 4 GiB
 - **OS Image**: Ubuntu 24.04 LTS
-- **Kernel**: 6.17.0-1013-azure
-- **Gramine**: v1.9
+- **Kernel**: 6.17.0-1018-azure
+- **Storage**: 30 GiB
+
+### Software Versions
+
+- [**Gramine**](https://github.com/gramineproject/gramine): v1.9
+- [**SGX DCAP**](https://github.com/intel/confidential-computing.tee.dcap): v1.26
 
 ### Setup
 
 The enclave runs in the container, but DCAP quote generation goes through the host's AESM daemon. The following steps prepare the host once.
 
-1. **Confirm SGX devices are present.**
+#### 1. Confirm SGX devices are present
+
+```bash
+ls -l /dev/sgx_enclave /dev/sgx_provision
+```
+
+#### 2. Install Gramine, AESM and DCAP
+
+```bash
+sudo curl -fsSLo /etc/apt/keyrings/gramine-keyring-$(lsb_release -sc).gpg \
+    https://packages.gramineproject.io/gramine-keyring-$(lsb_release -sc).gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/gramine-keyring-$(lsb_release -sc).gpg] \
+    https://packages.gramineproject.io/ $(lsb_release -sc) main" \
+    | sudo tee /etc/apt/sources.list.d/gramine.list
+
+sudo curl -fsSLo /etc/apt/keyrings/intel-sgx-deb.asc \
+    https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/intel-sgx-deb.asc] \
+    https://download.01.org/intel-sgx/sgx_repo/ubuntu $(lsb_release -sc) main" \
+    | sudo tee /etc/apt/sources.list.d/intel-sgx.list
+
+sudo apt update
+sudo apt install -y gramine
+sudo apt install -y sgx-aesm-service libsgx-dcap-ql libsgx-dcap-default-qpl
+
+sudo usermod -aG sgx $USER
+newgrp sgx
+```
+
+#### 3. Set the PCCS to be Azure THIM
+
+This repository includes [`sgx_default_qcnl.conf`](sgx_default_qcnl.conf), which fetches PCK certificates from the per-VM Azure IMDS THIM endpoint (`169.254.169.254`) and falls back to Intel PCS for attestation collateral. Install it as the system config:
+
+```bash
+sudo cp sgx_default_qcnl.conf /etc/sgx_default_qcnl.conf
+```
+
+#### 4. Restart AESMD
+
+```bash
+sudo systemctl restart aesmd
+ls -l /var/run/aesmd/aesm.socket    # should exist
+```
+
+The container mounts `/var/run/aesmd` at runtime to reach this socket.
+
+#### 5. Install Docker runtime
 
    ```bash
-   ls -l /dev/sgx_enclave /dev/sgx_provision
+   sudo apt install -y docker.io
+   sudo usermod -aG docker $USER
+   newgrp docker
    ```
-
-2. **Install AESM and the DCAP quote-generation stack.** The Gramine image does not ship a Quote Provider Library, so quote generation is delegated to AESM on the host.
-
-   ```bash
-   sudo apt-get update
-   sudo apt-get install -y \
-     sgx-aesm-service \
-     libsgx-aesm-ecdsa-plugin \
-     libsgx-aesm-launch-plugin \
-     libsgx-dcap-ql \
-     libsgx-dcap-default-qpl
-   ```
-
-3. **Point the Quote Provider Library at Azure THIM.** This repository ships [`sgx_default_qcnl.conf`](sgx_default_qcnl.conf), which fetches PCK certificates from the per-VM Azure IMDS THIM endpoint (`169.254.169.254`) and falls back to Intel PCS for verification collateral. Install it as the system config:
-
-   ```bash
-   sudo cp sgx_default_qcnl.conf /etc/sgx_default_qcnl.conf
-   ```
-
-4. **Enable and start AESM.**
-
-   ```bash
-   sudo systemctl enable --now aesmd
-   ls -l /var/run/aesmd/aesm.socket    # should exist
-   ```
-
-   The container mounts `/var/run/aesmd` at runtime to reach this socket.
 
 ### Run
 
@@ -143,7 +173,7 @@ sha384sum samples/hello.py
 
 ```console
 $ docker run --rm --entrypoint cat attestable-audit-poc /enclave/mrenclave.hex
-75ea1a43f1ba346c858881a2a41874d49d881645cfc0485a85953f847e768919
+2aab10b96f2acf632dc04b0ddaec5060c87a8951615109e30cc08c5dcaac2cc8
 
 $ cat output/audit_result.json | jq
 {
@@ -158,8 +188,8 @@ $ cat output/audit_result.json | jq
 }
 
 $ xxd -s 0x70 -l 32 output/quote.bin
-00000070: 75ea 1a43 f1ba 346c 8588 81a2 a418 74d4  u..C..4l......t.
-00000080: 9d88 1645 cfc0 485a 8595 3f84 7e76 8919  ...E..HZ..?.~v..
+00000070: 2aab 10b9 6f2a cf63 2dc0 4b0d daec 5060  *...o*.c-.K...P`
+00000080: c87a 8951 6151 09e3 0cc0 8c5d caac 2cc8  .z.QaQ.....]..,.
 
 $ xxd -s 0x170 -l 64 output/quote.bin
 00000170: eb70 9fe0 310a d1ab 87c2 2094 6304 d950  .p..1..... .c..P
