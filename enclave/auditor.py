@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-
+# SPDX-License-Identifier: MIT
 """
 Audit a Python script inside an SGX enclave and emit an SGX quote.
 
