@@ -203,3 +203,21 @@ eb709fe0310ad1ab87c220946304d95043588c4cd3e301ea98688d239a848da9d95c85cc0bb04f66
 $ sha384sum samples/hello.py
 1797358c48b127f4bb7cb69b9e04c3bc56d14eb70a59699ba2aaf7c7aa7db8af365ceb04d4b6d92a419bc92619ad3b81  samples/hello.py
 ```
+
+## How to cite
+
+```bibtex
+@inproceedings{imamura_2026_attestable,
+  author = {Imamura, Takuma},
+  title = {{Attestable Audit: Property-Based Attestation for Proprietary Workloads without Artifact Disclosure}},
+  booktitle = {Proceedings of the 15th International Workshop on Hardware and Architectural Support for Security and Privacy},
+  series = {HASP '26},
+  location = {Athens, Greece},
+  pages = {52--60},
+  numpages = {9},
+  year = {2026},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  doi = {10.1145/3857307.3857308},
+}
+```
